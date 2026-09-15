@@ -1,0 +1,45 @@
+{
+  "critic_lens": "simplicity",
+  "objections": [
+    {
+      "id": "SIM-001",
+      "challenged_adr": "0002",
+      "severity": "high",
+      "claim": "Premature addition of Memorystore Redis creates dual-write consistency hazards, cache stampedes, and operational complexity that PostgreSQL can handle natively.",
+      "failure_scenario": "When concurrent stock transfers or POS depletions occur, the application updates PostgreSQL and either writes to or invalidates Redis. Under high concurrency, network glitches, or container crashes between the SQL commit and Redis update, Redis serves stale inventory counts. Handheld scanners read cached availability (e.g., 5 items) for a bin that has already been depleted to 0 in SQL. Furthermore, cold-cache invalidations cause cache stampedes that overwhelm Cloud SQL connection limits with identical barcode queries.",
+      "recommended_mitigation": "Remove Memorystore Redis from the primary path. For read-heavy barcode lookups (15k-60k SKUs per store), PostgreSQL indexed lookups on `(store_id, barcode/ean)` with warm shared buffers and connection pooling can easily achieve single-digit millisecond latency. If caching is strictly necessary, utilize in-process memory caching (e.g., local LRU cache in Cloud Run instances with short TTL, 3-5 seconds) or rely on HTTP caching headers and PostgreSQL read replicas."
+    },
+    {
+      "id": "SIM-002",
+      "challenged_adr": "0003",
+      "severity": "high",
+      "claim": "Introducing both Cloud Pub/Sub and Cloud Tasks introduces dual-write hazards between database transactions and message publication without a transactional outbox pattern.",
+      "failure_scenario": "Inbound dock receiving and stock transfer endpoints commit changes to PostgreSQL and then publish events to Pub/Sub and schedule Cloud Tasks for SAP. If the Cloud Run instance dies or times out after committing to Cloud SQL but before dispatching to Pub/Sub/Cloud Tasks, the stock transfer is recorded locally in SQL but lost to SAP and downstream consumers. Conversely, if publishing occurs before transaction commit and the SQL transaction aborts due to serialization failure, downstream systems process phantom stock movements.",
+      "recommended_mitigation": "Simplify asynchronous coordination. Eliminate the separate Pub/Sub and Tasks dual-path for transactional changes by implementing a simple Transactional Outbox table inside PostgreSQL. An asynchronous poller/debezium or a single background worker dispatches events out of the same relational transaction, or leverage PostgreSQL SKIP LOCKED queue tables directly for task dispatch, collapsing external messaging dependencies."
+    },
+    {
+      "id": "SIM-003",
+      "challenged_adr": "0001",
+      "severity": "medium",
+      "claim": "Premature microservice decomposition across three separate Cloud Run services (inbound_dock, stock_ledger, markdown_engine) adds network serialization, cross-service schema duplication, and deploy orchestration overhead for a single store boundary.",
+      "failure_scenario": "During routine store workflows (e.g., receiving goods in inbound_dock that immediately trigger replenishment tasks or markdown alerts in markdown_engine), services must perform HTTP RPCs or Pub/Sub hops back and forth. Coordinating deployments and database schema migrations across three separate Cloud Run services sharing a single Cloud SQL database causes tight coupling at the data tier without the benefits of autonomous microservices.",
+      "recommended_mitigation": "Consolidate the backend into a modular monolith running in a single Cloud Run service with strict internal module/package boundaries (`inbound_dock`, `stock_ledger`, `markdown_engine`). Scale and deploy as a single container artifact, eliminating inter-service network hops and configuration sprawl while retaining clean architectural isolation."
+    },
+    {
+      "id": "SIM-004",
+      "challenged_adr": "0005",
+      "severity": "high",
+      "claim": "Distributed dual-tier idempotency caching across both Memorystore Redis (24-hour TTL) and PostgreSQL persistence layer creates redundant state management and split-brain risks.",
+      "failure_scenario": "When mobile scanners replay queued requests via Jetpack WorkManager after re-emerging from cold rooms, the API checks Redis first. If Redis experiences an eviction or transient failover, an idempotency key lookup misses Redis and proceeds to process the operation. If the application does not wrap the fallback PostgreSQL unique constraint check in an atomic transaction prior to executing business side effects (such as sending ESC/POS print commands or triggering an external SAP Task), duplicate external side effects execute despite downstream SQL constraint failures.",
+      "recommended_mitigation": "Rely solely on PostgreSQL for idempotency. Enforce unique constraints on `idempotency_key` (with a composite `(store_id, idempotency_key)` index and `created_at` timestamp) directly within the database transaction wrapping the business mutation. Eliminate the Redis idempotency cache entirely, removing state synchronization overhead."
+    },
+    {
+      "id": "SIM-005",
+      "challenged_adr": "0004",
+      "severity": "medium",
+      "claim": "Layering PostgreSQL Row-Level Security (RLS) on top of application-level JWT middleware and ORM tenancy filters creates unnecessary multi-layer authorization complexity and debugging friction.",
+      "failure_scenario": "Because Cloud Run uses connection pooling (e.g., PgBouncer or SQLAlchemy QueuePool) with a shared service database user, enabling PostgreSQL RLS requires setting session-level configuration variables (e.g., `SET LOCAL app.current_store_id = ...`) on every transaction. If a connection is returned to the pool without clean reset or if a transaction context leaks across async tasks, queries run with stale store scopes or fail unexpectedly with obscure RLS denial errors that are difficult to trace in production.",
+      "recommended_mitigation": "Enforce tenant and departmental isolation deterministically at the application data-access layer (repository/ORM queries parameterized with `store_id` and `department_id` validated from verified JWT claims). Reserve database RLS for multi-tenant multi-user database connections if needed, avoiding connection pool session variable pollution."
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "resolutions": [
+    {
+      "objection_id": "COS-001",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0002 and docs/architecture.md to decouple caching and idempotency from dedicated provisioned Redis instances. For single-store environments and baseline operations, PostgreSQL warm shared buffers with indexed lookups plus in-process LRU cache (3-5s TTL in Cloud Run) satisfy the P95 < 120ms requirement. For multi-store deployments, Redis is pooled as a multi-tenant shared cluster across 1,200 stores, reducing cost allocation to ~€0.15/store/month and eliminating the scale-to-zero budget breach.",
+      "adr_updated": "0002"
+    },
+    {
+      "objection_id": "COS-002",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0002 to adopt Cloud SQL Enterprise Edition with rightsized compute, automated storage scaling, and regional HA. Clarified that the database is pooled multi-tenant across stores with store-level schema partitioning, allocating less than €3.50/store/month and eliminating individual over-provisioned idle VM waste.",
+      "adr_updated": "0002"
+    },
+    {
+      "objection_id": "COS-003",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0001 to consolidate the backend into a modular monolith deployment within Cloud Run with min-instances=1 (scaled dynamically to 2 via Cloud Scheduler before 05:00 shifts) and concurrency=80. This reduces idle container instance-hours by up to 75% while maintaining warm connection pools and clean internal module boundaries.",
+      "adr_updated": "0001"
+    },
+    {
+      "objection_id": "COS-004",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0003 to require edge/client micro-batching on POS depletions and scan streams (50-100 items or 250ms sliding window) before publishing to Cloud Pub/Sub, maximizing the 1 KiB billing boundary and reducing message invocation counts by ~85%. Cloud Tasks are batched for downstream SAP ERP synchronization.",
+      "adr_updated": "0003"
+    },
+    {
+      "objection_id": "COS-005",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0002 to enforce daily partitioning on DATE(event_timestamp) and clustering on (store_id, department_id, aisle_id) across all BigQuery audit and shrinkage tables, together with pre-aggregated hourly rollup views for dashboards and strict maximum_bytes_billed quotas on service accounts.",
+      "adr_updated": "0002"
+    },
+    {
+      "objection_id": "COS-006",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0001 to adopt Google Cloud Run Direct VPC Egress instead of legacy Serverless VPC Access connectors, completely eliminating idle connector VM charges, connector throughput fees, and cross-zone networking traps.",
+      "adr_updated": "0001"
+    },
+    {
+      "objection_id": "RES-001",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0002 to introduce HA connection pooling (PgBouncer/Supavisor) between Cloud Run instances and Cloud SQL, alongside store-cluster sharding boundaries to eliminate connection starvation and isolate blast radius during peak rushes and failover events.",
+      "adr_updated": "0002"
+    },
+    {
+      "objection_id": "RES-002",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0005 to enforce optimistic concurrency control with expected_version / compare-and-swap (CAS) tokens on transfer intents, complemented by partitioned device reservation quotas and deterministic server-side reconciliation workflows for over-depletion anomalies.",
+      "adr_updated": "0005"
+    },
+    {
+      "objection_id": "RES-003",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0002 to decouple idempotency from transient cache stores. Idempotency validation is authoritatively enforced within PostgreSQL transactions using an indexed processed_requests table with unique constraints, while Redis/in-process caching is strictly a non-authoritative read-through optimization with circuit-breaker protection.",
+      "adr_updated": "0002"
+    },
+    {
+      "objection_id": "RES-004",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0003 to configure Pub/Sub push flow control (max outstanding messages, max push rate limits, batch delivery max_messages=100) with exponential backoff and circuit breakers to prevent thundering herd autoscaling surges on recovery.",
+      "adr_updated": "0003"
+    },
+    {
+      "objection_id": "RES-005",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0004 to provide an offline session grace period and cryptographic device-bound session refresh tokens on Zebra mobile devices, allowing offline transactions during 8-hour shifts to be verified and queued even during transient corporate IdP outages.",
+      "adr_updated": "0004"
+    },
+    {
+      "objection_id": "RES-006",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0001 to schedule automated pre-warming via Cloud Scheduler at 04:30 CET (setting min-instances=2 prior to morning shift intake) combined with client-side request debouncing and jittered exponential backoff on Zebra handhelds.",
+      "adr_updated": "0001"
+    },
+    {
+      "objection_id": "SIM-001",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0002 to make external Memorystore Redis an optional layer for read scaling rather than a critical-path dependency. PostgreSQL with warm buffers, B-tree indexes, and in-process LRU cache handles primary barcode lookups natively, eliminating dual-write consistency hazards.",
+      "adr_updated": "0002"
+    },
+    {
+      "objection_id": "SIM-002",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0003 to establish a Transactional Outbox pattern inside PostgreSQL for domain mutations requiring downstream publishing to Pub/Sub and SAP ERP, ensuring atomic consistency without dual-write anomalies.",
+      "adr_updated": "0003"
+    },
+    {
+      "objection_id": "SIM-003",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0001 to deploy the application as a modular monolith on Cloud Run containing cleanly bounded Python packages (inbound_dock, stock_ledger, markdown_engine), avoiding premature microservice network hop and schema coordination complexity.",
+      "adr_updated": "0001"
+    },
+    {
+      "objection_id": "SIM-004",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0005 to rely authoritatively on PostgreSQL unique constraints on (store_id, idempotency_key) within the atomic transaction wrapping the mutation, eliminating split-brain risks between Redis and database deduplication.",
+      "adr_updated": "0005"
+    },
+    {
+      "objection_id": "SIM-005",
+      "disposition": "mitigated",
+      "resolution": "Updated ADR-0004 to clarify that tenant and departmental authorization is enforced deterministically at the application data-access layer via verified JWT claims parameterizing repository queries, avoiding connection-pool session variable pollution from PostgreSQL RLS while maintaining strict isolation.",
+      "adr_updated": "0004"
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "completed_stages": [
+    "gate-0",
+    "gate-adversarial",
+    "gate-0.5",
+    "gate-1",
+    "gate-security",
+    "gate-2",
+    "gate-3",
+    "gate-4"
+  ],
+  "remediation_attempts": {
+    "gate-0": 0,
+    "gate-adversarial": 0,
+    "gate-0.5": 0,
+    "gate-1": 0,
+    "gate-security": 0,
+    "gate-2:inbound_dock": 0,
+    "gate-2:markdown_engine": 0,
+    "gate-2:stock_ledger": 0,
+    "gate-3": 0,
+    "gate-4": 0
+  },
+  "execution_history": [
+    {
+      "stage": "gate-0",
+      "subsystem": "",
+      "exit_code": 1,
+      "attempt": 1,
+      "passed": false,
+      "timestamp": "2026-09-15T11:42:06.206306+00:00",
+      "stdout_snippet": "==================================================\n\ud83c\udfaf Running Maestro Mechanical Gates [Stage: gate-0]\n==================================================\n\u25b6 [Gate 0] Checking ADR Structural & Sequencing Rules...\n{\n  \"valid\": false,\n  \"adr_count\": 0,\n  \"directory_violations\": [\n    \"ADR directory 'docs/adr' does not exist or is not a directory.\"\n  ],\n  \"results\": []\n}\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-0",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 2,
+      "passed": true,
+      "timestamp": "2026-09-15T11:46:22.732074+00:00",
+      "stdout_snippet": " true,\n      \"filename\": \"0003-event-driven-messaging-pubsub-tasks.md\",\n      \"adr_id\": \"0003\",\n      \"title\": \"Asynchronous Messaging & Ingestion: Google Cloud Pub/Sub and Cloud Tasks\",\n      \"status\": \"proposed\",\n      \"superseded_by\": null,\n      \"approved_by\": null,\n      \"violations\": [],\n      \"valid\": true\n    },\n    {\n      \"is_valid\": true,\n      \"filename\": \"0004-auth-iam-rbac-partitioning.md\",\n      \"adr_id\": \"0004\",\n      \"title\": \"Authentication, Authorization & Departmental RBAC Partitioning\",\n      \"status\": \"proposed\",\n      \"superseded_by\": null,\n      \"approved_by\": null,\n      \"violations\": [],\n      \"valid\": true\n    },\n    {\n      \"is_valid\": true,\n      \"filename\": \"0005-offline-resilience-mobile-sync.md\",\n      \"adr_id\": \"0005\",\n      \"title\": \"Mobile Offline-First Resilience & Idempotent Synchronization\",\n      \"status\": \"proposed\",\n      \"superseded_by\": null,\n      \"approved_by\": null,\n      \"violations\": [],\n      \"valid\": true\n    }\n  ]\n}\n\u2705 [Gate 0] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-adversarial",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T11:50:23.193085+00:00",
+      "stdout_snippet": "==================================================\n\ud83c\udfaf Running Maestro Mechanical Gates [Stage: gate-adversarial]\n==================================================\n\u25b6 [Gate Adversarial] Checking docs/adr/objections/ Structured Adversarial Review...\n{\n  \"valid\": true,\n  \"objections_count\": 17,\n  \"critic_counts\": {\n    \"cost\": 6,\n    \"resilience\": 6,\n    \"simplicity\": 5\n  },\n  \"resolved_count\": 17,\n  \"unresolved_count\": 0,\n  \"unresolved_ids\": []\n}\n\u2705 [Gate Adversarial] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-0.5",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T11:53:03.420753+00:00",
+      "stdout_snippet": "me\": \"0003-event-driven-messaging-pubsub-tasks.md\",\n      \"adr_id\": \"0003\",\n      \"title\": \"Asynchronous Messaging & Ingestion: Google Cloud Pub/Sub and Cloud Tasks\",\n      \"status\": \"accepted\",\n      \"superseded_by\": null,\n      \"approved_by\": \"npintaux\",\n      \"violations\": [],\n      \"valid\": true\n    },\n    {\n      \"is_valid\": true,\n      \"filename\": \"0004-auth-iam-rbac-partitioning.md\",\n      \"adr_id\": \"0004\",\n      \"title\": \"Authentication, Authorization & Departmental RBAC Partitioning\",\n      \"status\": \"accepted\",\n      \"superseded_by\": null,\n      \"approved_by\": \"npintaux\",\n      \"violations\": [],\n      \"valid\": true\n    },\n    {\n      \"is_valid\": true,\n      \"filename\": \"0005-offline-resilience-mobile-sync.md\",\n      \"adr_id\": \"0005\",\n      \"title\": \"Mobile Offline-First Resilience & Idempotent Synchronization\",\n      \"status\": \"accepted\",\n      \"superseded_by\": null,\n      \"approved_by\": \"npintaux\",\n      \"violations\": [],\n      \"valid\": true\n    }\n  ]\n}\n\u2705 [Gate 0.5] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-1",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T11:53:06.383712+00:00",
+      "stdout_snippet": "curity\",\n    \"reliability\",\n    \"cost_optimization\",\n    \"performance\",\n    \"sustainability\"\n  ],\n  \"pillars_missing\": [],\n  \"pillars_uncited\": [],\n  \"frozen_services\": [\n    \"BigQuery\",\n    \"Cloud Armor\",\n    \"Cloud IAM\",\n    \"Cloud KMS\",\n    \"Cloud Logging\",\n    \"Cloud Run\",\n    \"Cloud SQL\",\n    \"Cloud Storage\",\n    \"Cloud Tasks\",\n    \"Memorystore\",\n    \"Pub/Sub\",\n    \"Secret Manager\"\n  ],\n  \"docs_citations_count\": 7,\n  \"gcp_services_mentioned\": [\n    \"Cloud Run\",\n    \"Cloud SQL\",\n    \"BigQuery\",\n    \"Cloud Storage\",\n    \"Pub/Sub\",\n    \"Cloud Tasks\",\n    \"Cloud Armor\",\n    \"Secret Manager\",\n    \"Cloud KMS\",\n    \"Cloud Logging\",\n    \"Cloud Monitoring\",\n    \"Cloud Trace\",\n    \"Cloud Deploy\",\n    \"Cloud Build\",\n    \"Memorystore\",\n    \"Cloud Load Balancing\",\n    \"Identity-Aware Proxy\",\n    \"IAP\",\n    \"Workload Identity\",\n    \"Cloud IAM\"\n  ],\n  \"subsystems_found\": [\n    \"inbound_dock\",\n    \"markdown_engine\",\n    \"stock_ledger\"\n  ],\n  \"violations\": [],\n  \"valid\": true\n}\n\u2705 [Gate 1] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-security",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T11:53:06.558182+00:00",
+      "stdout_snippet": "==================================================\n\ud83c\udfaf Running Maestro Mechanical Gates [Stage: gate-security]\n==================================================\n\u25b6 [Gate Security] Checking docs/security.md STRIDE Threat Model & IAM Matrix...\n\u2705 Security Architecture Audit PASSED for docs/security.md\n   - STRIDE Categories: 6/6 covered\n   - Service Accounts: 6 defined\n   - Cataloged Secrets: 7 entries\n   - Mermaid Boundaries: Present\n   - PRD NFR Citations: NFR-SEC-1, NFR-SEC-2, NFR-SEC-3, NFR-SEC-4, NFR-SEC-6\n\u2705 [Gate Security] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-2",
+      "subsystem": "inbound_dock",
+      "exit_code": 1,
+      "attempt": 1,
+      "passed": false,
+      "timestamp": "2026-09-15T11:56:43.862658+00:00",
+      "stdout_snippet": "==================================================\n\ud83c\udfaf Running Maestro Mechanical Gates [Stage: gate-2]\n==================================================\n\u25b6 [Gate Contract] Validating Contract & Spec for 'src/modules/inbound_dock/openapi.yaml'...\n",
+      "stderr_snippet": "Traceback (most recent call last):\n  File \"/home/user/orchestrated-coding/scripts/validate_contract.py\", line 28, in <module>\n    import yaml\nModuleNotFoundError: No module named 'yaml'\n"
+    },
+    {
+      "stage": "gate-2",
+      "subsystem": "inbound_dock",
+      "exit_code": 0,
+      "attempt": 2,
+      "passed": true,
+      "timestamp": "2026-09-15T11:56:51.267026+00:00",
+      "stdout_snippet": "=======================\n\ud83c\udfaf Running Maestro Mechanical Gates [Stage: gate-2]\n==================================================\n\u25b6 [Gate Contract] Validating Contract & Spec for 'src/modules/inbound_dock/openapi.yaml'...\n{\n  \"is_valid\": true,\n  \"file_path\": \"src/modules/inbound_dock/openapi.yaml\",\n  \"endpoints_found\": [\n    \"GET /v1/stores/{storeId}/inbound-shipments/{asnId}\",\n    \"POST /v1/inbound-shipments\",\n    \"POST /v1/inbound-shipments/{asnId}/discrepancies\",\n    \"POST /v1/inbound-shipments/{asnId}/receive-pallet\"\n  ],\n  \"schemas_found\": [\n    \"AsnIngestRequest\",\n    \"AsnItemLine\",\n    \"AsnResponse\",\n    \"DiscrepancyRequest\",\n    \"DiscrepancyResponse\",\n    \"ErrorResponse\",\n    \"PalletManifest\",\n    \"PalletStatus\",\n    \"ReceivePalletRequest\",\n    \"ReceivePalletResponse\"\n  ],\n  \"status_codes_checked\": [\n    \"200\",\n    \"201\",\n    \"400\",\n    \"404\",\n    \"409\",\n    \"422\",\n    \"500\"\n  ],\n  \"violations\": [],\n  \"selected_pattern\": \"state-machine\",\n  \"valid\": true\n}\n\u2705 [Gate Contract] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-2",
+      "subsystem": "markdown_engine",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T11:57:21.157843+00:00",
+      "stdout_snippet": "==================================================\n\ud83c\udfaf Running Maestro Mechanical Gates [Stage: gate-2]\n==================================================\n\u25b6 [Gate Contract] Validating Contract & Spec for 'src/modules/markdown_engine/openapi.yaml'...\n{\n  \"is_valid\": true,\n  \"file_path\": \"src/modules/markdown_engine/openapi.yaml\",\n  \"endpoints_found\": [\n    \"POST /v1/markdown/donations\",\n    \"POST /v1/markdown/evaluate\",\n    \"POST /v1/markdown/pos-feed\",\n    \"POST /v1/markdown/print-label\"\n  ],\n  \"schemas_found\": [\n    \"DonationSpoilageRequest\",\n    \"DonationSpoilageResponse\",\n    \"ErrorResponse\",\n    \"MarkdownEvaluationRequest\",\n    \"MarkdownEvaluationResponse\",\n    \"PosFeedPublishRequest\",\n    \"PosFeedPublishResponse\",\n    \"PrintLabelRequest\",\n    \"PrintLabelResponse\"\n  ],\n  \"status_codes_checked\": [\n    \"200\",\n    \"201\",\n    \"400\",\n    \"422\",\n    \"500\"\n  ],\n  \"violations\": [],\n  \"selected_pattern\": \"decision-list\",\n  \"valid\": true\n}\n\u2705 [Gate Contract] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-2",
+      "subsystem": "stock_ledger",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T11:57:49.095603+00:00",
+      "stdout_snippet": "t] Validating Contract & Spec for 'src/modules/stock_ledger/openapi.yaml'...\n{\n  \"is_valid\": true,\n  \"file_path\": \"src/modules/stock_ledger/openapi.yaml\",\n  \"endpoints_found\": [\n    \"GET /v1/stores/{store_id}/stock\",\n    \"POST /v1/stores/{store_id}/adjustments\",\n    \"POST /v1/stores/{store_id}/adjustments/{adjustment_id}/sign-off\",\n    \"POST /v1/stores/{store_id}/pos-depletions\",\n    \"POST /v1/stores/{store_id}/transfers\"\n  ],\n  \"schemas_found\": [\n    \"AdjustmentRequest\",\n    \"AdjustmentResponse\",\n    \"AdjustmentStatus\",\n    \"ErrorResponse\",\n    \"PosDepletionItem\",\n    \"PosDepletionRequest\",\n    \"PosDepletionResponse\",\n    \"ReasonCode\",\n    \"SignOffRequest\",\n    \"StockItem\",\n    \"StockListResponse\",\n    \"StockZone\",\n    \"TransferRequest\",\n    \"TransferResponse\"\n  ],\n  \"status_codes_checked\": [\n    \"200\",\n    \"202\",\n    \"400\",\n    \"403\",\n    \"404\",\n    \"409\",\n    \"422\",\n    \"500\"\n  ],\n  \"violations\": [],\n  \"selected_pattern\": \"decision-list\",\n  \"valid\": true\n}\n\u2705 [Gate Contract] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-3",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T12:52:26.207407+00:00",
+      "stdout_snippet": "red_donation_gating_rule.py\",\n    \"domain/rules/payload_validation_rule.py\",\n    \"domain/rules/standard_freshness_rule.py\",\n    \"entrypoints/__init__.py\",\n    \"entrypoints/api.py\",\n    \"entrypoints/models.py\"\n  ],\n  \"violations\": [],\n  \"valid\": true\n}\n  -> Auditing implementation for 'src/modules/stock_ledger'...\n{\n  \"is_valid\": true,\n  \"subsystem\": \"stock_ledger\",\n  \"files_checked\": [\n    \"__init__.py\",\n    \"adapters/__init__.py\",\n    \"adapters/memory_repository.py\",\n    \"domain/__init__.py\",\n    \"domain/engine.py\",\n    \"domain/exceptions.py\",\n    \"domain/models.py\",\n    \"domain/repository.py\",\n    \"domain/rules/__init__.py\",\n    \"domain/rules/base.py\",\n    \"domain/rules/department_scope_rule.py\",\n    \"domain/rules/dual_key_threshold_rule.py\",\n    \"domain/rules/sign_off_validator.py\",\n    \"domain/rules/sufficient_stock_rule.py\",\n    \"entrypoints/__init__.py\",\n    \"entrypoints/api.py\",\n    \"entrypoints/models.py\"\n  ],\n  \"violations\": [],\n  \"valid\": true\n}\n\u2705 [Gate Code Quality] Passed.\n",
+      "stderr_snippet": ""
+    },
+    {
+      "stage": "gate-4",
+      "subsystem": "",
+      "exit_code": 0,
+      "attempt": 1,
+      "passed": true,
+      "timestamp": "2026-09-15T12:52:29.732515+00:00",
+      "stdout_snippet": "artment_scope_rule.py                13      0   100%\nsrc/modules/stock_ledger/domain/rules/dual_key_threshold_rule.py              12      0   100%\nsrc/modules/stock_ledger/domain/rules/sign_off_validator.py                   16      0   100%\nsrc/modules/stock_ledger/domain/rules/sufficient_stock_rule.py                19      0   100%\nsrc/modules/stock_ledger/entrypoints/__init__.py                               0      0   100%\nsrc/modules/stock_ledger/entrypoints/api.py                                  149      0   100%\nsrc/modules/stock_ledger/entrypoints/models.py                                74      0   100%\n--------------------------------------------------------------------------------------------------------\nTOTAL                                                                       1333      0   100%\nRequired test coverage of 100% reached. Total coverage: 100.00%\n======================= 227 passed, 8 warnings in 2.18s ========================\n\u2705 [Gate Test Coverage] Passed.\n",
+      "stderr_snippet": ""
+    }
+  ],
+  "circuit_breaker_tripped": false,
+  "tripped_stage": ""
+}

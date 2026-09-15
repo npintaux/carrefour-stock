@@ -1,0 +1,1 @@
+"""Stock ledger module root."""

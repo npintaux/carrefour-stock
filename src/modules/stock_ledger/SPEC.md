@@ -80,6 +80,7 @@ class ReasonCode(str, Enum):
 @dataclass(frozen=True)
 class StockItem:
     """Immutable stock balance record for a specific SKU and zone."""
+
     sku_id: str
     ean13: str
     product_name: str
@@ -92,6 +93,7 @@ class StockItem:
 @dataclass(frozen=True)
 class AdjustmentEvaluationRequest:
     """Immutable input payload for adjustment policy rule evaluation."""
+
     request_id: str
     store_id: str
     sku_id: str
@@ -109,6 +111,7 @@ class AdjustmentEvaluationRequest:
 @dataclass(frozen=True)
 class Decision:
     """Immutable outcome of rule evaluation."""
+
     is_allowed: bool
     status_code: int
     error_code: Optional[str]
@@ -120,6 +123,7 @@ class Decision:
 @dataclass(frozen=True)
 class AdjustmentRecord:
     """Persisted adjustment entity in datastore."""
+
     adjustment_id: str
     store_id: str
     sku_id: str
@@ -204,7 +208,7 @@ class AdjustmentDecisionEngine:
             status_code=200,
             error_code=None,
             action="AUTO_APPROVE",
-            reason="All adjustment policy rules passed."
+            reason="All adjustment policy rules passed.",
         )
 ```
 

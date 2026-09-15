@@ -1,0 +1,480 @@
+openapi: 3.0.3
+info:
+  title: "Carrefour Stock Flow - Inbound Dock Service API"
+  version: "1.0.0"
+  description: "Machine-readable OpenAPI 3.x contract for the inbound_dock subsystem. Handles ASN ingestion, SSCC pallet barcode scanning, cold-chain temperature verification (0-4°C / -18°C), discrepancy claims, and quarantine vs staging transitions."
+
+paths:
+  /v1/inbound-shipments:
+    post:
+      operationId: "ingestAsn"
+      summary: "Ingest Advanced Shipping Notice (ASN)"
+      description: "Ingests an ASN from SAP Retail ERP/WMS with expected pallets, lines, batch numbers, and cold-chain temperature requirements."
+      parameters:
+        - name: "Idempotency-Key"
+          in: "header"
+          required: true
+          description: "UUID idempotency token to prevent duplicate ASN ingestion"
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AsnIngestRequest"
+      responses:
+        "201":
+          description: "ASN successfully ingested and registered"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsnResponse"
+        "400":
+          description: "Invalid request payload or malformed barcode format"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Duplicate ASN ID or conflicting shipment status"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Business rule violation in shipment details"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/stores/{storeId}/inbound-shipments/{asnId}:
+    get:
+      operationId: "getAsn"
+      summary: "Get ASN shipment details"
+      description: "Retrieves expected pallets, SKUs, batches, and cold-chain temperature specifications for a given store and shipment."
+      parameters:
+        - name: "storeId"
+          in: "path"
+          required: true
+          description: "Tenant store identifier (e.g. STORE_FR_75015)"
+          schema:
+            type: string
+        - name: "asnId"
+          in: "path"
+          required: true
+          description: "Advance Shipping Notice identifier"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: "ASN shipment details retrieved successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AsnResponse"
+        "400":
+          description: "Invalid store or ASN identifier"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "Shipment or store not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/inbound-shipments/{asnId}/receive-pallet:
+    post:
+      operationId: "receivePallet"
+      summary: "Scan and receive pallet with cold-chain evaluation"
+      description: "Evaluates pallet SSCC barcode, probed temperature against regime requirements (0-4°C / -18°C), and transitions pallet stock to BACKROOM_STAGING or QUARANTINE."
+      parameters:
+        - name: "asnId"
+          in: "path"
+          required: true
+          description: "Advance Shipping Notice identifier"
+          schema:
+            type: string
+        - name: "Idempotency-Key"
+          in: "header"
+          required: true
+          description: "UUID idempotency token for offline-tolerant mobile terminal retries"
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceivePalletRequest"
+      responses:
+        "200":
+          description: "Pallet successfully evaluated and received into staging or quarantine"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivePalletResponse"
+        "400":
+          description: "Invalid request payload or malformed SSCC barcode format"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "ASN or Pallet SSCC not found in shipment"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Pallet already received or invalid state transition"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Business rule violation (e.g. cold-chain temperature out of compliance)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/inbound-shipments/{asnId}/discrepancies:
+    post:
+      operationId: "recordDiscrepancy"
+      summary: "Record discrepancy claim with optional photo evidence"
+      description: "Logs overage, shortage, damage, or cold-chain violation claims with attached photo proof for carrier claims and quarantine tracking."
+      parameters:
+        - name: "asnId"
+          in: "path"
+          required: true
+          description: "Advance Shipping Notice identifier"
+          schema:
+            type: string
+        - name: "Idempotency-Key"
+          in: "header"
+          required: true
+          description: "UUID idempotency token to prevent duplicate discrepancy records"
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiscrepancyRequest"
+      responses:
+        "201":
+          description: "Discrepancy claim successfully recorded"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscrepancyResponse"
+        "400":
+          description: "Invalid discrepancy payload or invalid rejection code"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "Shipment or pallet not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Business rule violation in discrepancy claim"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    AsnIngestRequest:
+      type: object
+      required:
+        - asn_id
+        - store_id
+        - supplier_id
+        - expected_delivery
+        - pallets
+      properties:
+        asn_id:
+          type: string
+          description: "Unique ASN shipment identifier from ERP/WMS"
+        store_id:
+          type: string
+          description: "Destination store identifier (e.g. STORE_FR_75015)"
+        supplier_id:
+          type: string
+          description: "Identifier of the supplier or central DC"
+        expected_delivery:
+          type: string
+          format: date-time
+          description: "Scheduled delivery timestamp"
+        pallets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PalletManifest"
+
+    PalletManifest:
+      type: object
+      required:
+        - sscc
+        - temperature_regime
+        - lines
+      properties:
+        sscc:
+          type: string
+          description: "Serial Shipping Container Code (SSCC-18, 18 numeric digits)"
+        temperature_regime:
+          type: string
+          enum: ["AMBIENT", "CHILLED", "FROZEN"]
+          description: "Cold-chain regime: AMBIENT, CHILLED (0-4°C), FROZEN (-18°C)"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AsnItemLine"
+
+    AsnItemLine:
+      type: object
+      required:
+        - sku
+        - ean13
+        - expected_quantity
+        - lot_number
+        - bbd
+      properties:
+        sku:
+          type: string
+          description: "Stock Keeping Unit identifier"
+        ean13:
+          type: string
+          description: "EAN-13 European Article Number barcode"
+        expected_quantity:
+          type: integer
+          minimum: 1
+          description: "Expected unit count"
+        lot_number:
+          type: string
+          description: "Manufacturer production batch/lot identifier"
+        bbd:
+          type: string
+          format: date
+          description: "Best Before Date / Expiration Date (DLC/DLUO)"
+
+    AsnResponse:
+      type: object
+      required:
+        - asn_id
+        - store_id
+        - status
+        - total_pallets
+        - received_pallets
+        - pallets
+      properties:
+        asn_id:
+          type: string
+        store_id:
+          type: string
+        status:
+          type: string
+          enum: ["EXPECTED", "IN_RECEIVING", "COMPLETED", "DISCREPANCY_FLAGGED"]
+        total_pallets:
+          type: integer
+        received_pallets:
+          type: integer
+        pallets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PalletStatus"
+
+    PalletStatus:
+      type: object
+      required:
+        - sscc
+        - temperature_regime
+        - status
+        - lines
+      properties:
+        sscc:
+          type: string
+        temperature_regime:
+          type: string
+          enum: ["AMBIENT", "CHILLED", "FROZEN"]
+        status:
+          type: string
+          enum: ["EXPECTED", "BACKROOM_STAGING", "STATUS_QUARANTINE", "REJECTED_RTV"]
+        probed_temperature:
+          type: number
+          format: float
+          nullable: true
+          description: "Probed temperature in degrees Celsius"
+        received_at:
+          type: string
+          format: date-time
+          nullable: true
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/AsnItemLine"
+
+    ReceivePalletRequest:
+      type: object
+      required:
+        - sscc
+        - store_id
+        - operator_id
+      properties:
+        sscc:
+          type: string
+          description: "SSCC-18 pallet barcode (18 digits)"
+        store_id:
+          type: string
+          description: "Receiving store identifier"
+        operator_id:
+          type: string
+          description: "Employee ID of receiving specialist"
+        probed_temperature:
+          type: number
+          format: float
+          description: "Probed temperature reading in °C (mandatory for CHILLED and FROZEN)"
+        damage_observed:
+          type: boolean
+          default: false
+          description: "Whether physical packaging damage was observed"
+        notes:
+          type: string
+          description: "Optional notes from receiving specialist"
+
+    ReceivePalletResponse:
+      type: object
+      required:
+        - asn_id
+        - sscc
+        - status
+        - target_location
+        - is_compliant
+        - message
+      properties:
+        asn_id:
+          type: string
+        sscc:
+          type: string
+        status:
+          type: string
+          enum: ["BACKROOM_STAGING", "STATUS_QUARANTINE", "REJECTED_RTV"]
+        target_location:
+          type: string
+          enum: ["BACKROOM_STAGING", "QUARANTINE_DAMAGED", "COLD_STORAGE_RESERVE"]
+        is_compliant:
+          type: boolean
+        violation_reason:
+          type: string
+          nullable: true
+        message:
+          type: string
+
+    DiscrepancyRequest:
+      type: object
+      required:
+        - store_id
+        - discrepancy_type
+        - reason_code
+        - reported_by
+      properties:
+        store_id:
+          type: string
+        sscc:
+          type: string
+          nullable: true
+        sku:
+          type: string
+          nullable: true
+        discrepancy_type:
+          type: string
+          enum: ["OVERAGE", "SHORTAGE", "DAMAGE", "COLD_CHAIN_BREACH"]
+        reason_code:
+          type: string
+          enum: ["DAMAGED_CRUSHED", "LEAKING_PACKAGE", "TEMP_ABOVE_4C", "TEMP_ABOVE_MINUS_18C", "MISSING_PALLET", "UNEXPECTED_PALLET"]
+        affected_quantity:
+          type: integer
+          minimum: 1
+          default: 1
+        photo_evidence_url:
+          type: string
+          format: uri
+          nullable: true
+          description: "GCS URI of photographic evidence"
+        reported_by:
+          type: string
+        notes:
+          type: string
+
+    DiscrepancyResponse:
+      type: object
+      required:
+        - discrepancy_id
+        - asn_id
+        - status
+        - created_at
+      properties:
+        discrepancy_id:
+          type: string
+        asn_id:
+          type: string
+        status:
+          type: string
+          enum: ["LOGGED", "CLAIM_DISPATCHED", "UNDER_REVIEW"]
+        created_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: "Taxonomy error code string (e.g. COLD_CHAIN_VIOLATION, INVALID_SSCC_BARCODE)"
+        message:
+          type: string
+          description: "Human-readable description of the error"
+        details:
+          type: object
+          additionalProperties: true
+          description: "Optional contextual error details"

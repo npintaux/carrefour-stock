@@ -49,6 +49,7 @@ from typing import Optional
 
 class TemperatureRegime(Enum):
     """Cold-chain classification regimes."""
+
     AMBIENT = "AMBIENT"
     CHILLED = "CHILLED"
     FROZEN = "FROZEN"
@@ -56,6 +57,7 @@ class TemperatureRegime(Enum):
 
 class PalletLifecycleState(Enum):
     """Lifecycle states of an inbound pallet."""
+
     EXPECTED = auto()
     IN_RECEIVING = auto()
     BACKROOM_STAGING = auto()
@@ -65,6 +67,7 @@ class PalletLifecycleState(Enum):
 
 class PalletEventType(Enum):
     """Domain events driving pallet lifecycle transitions."""
+
     SCAN = auto()
     PASS_INSPECTION = auto()
     FAIL_COLD_CHAIN = auto()
@@ -75,6 +78,7 @@ class PalletEventType(Enum):
 @dataclass(frozen=True)
 class AsnLineItem:
     """Individual product line item on an ASN manifest."""
+
     sku: str
     ean13: str
     expected_quantity: int
@@ -85,6 +89,7 @@ class AsnLineItem:
 @dataclass(frozen=True)
 class PalletEntity:
     """Inbound pallet container domain entity."""
+
     sscc: str
     asn_id: str
     temperature_regime: TemperatureRegime
@@ -98,6 +103,7 @@ class PalletEntity:
 @dataclass(frozen=True)
 class PalletEvent:
     """Event triggering a pallet state transition."""
+
     event_type: PalletEventType
     entity_id: str  # SSCC
     store_id: str
@@ -110,6 +116,7 @@ class PalletEvent:
 @dataclass(frozen=True)
 class TransitionResult:
     """Result of state machine evaluation."""
+
     success: bool
     from_state: PalletLifecycleState
     to_state: PalletLifecycleState

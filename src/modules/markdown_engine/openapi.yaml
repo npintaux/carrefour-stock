@@ -1,0 +1,390 @@
+openapi: 3.0.3
+info:
+  title: "Markdown Engine Service API"
+  version: "1.0.0"
+  description: "Machine-readable OpenAPI contract for Carrefour Stock Flow markdown_engine subsystem. Manages perishable date auditing, automated dynamic markdowns (T-1 30%, T-0 50%), promotional ESC/POS label printing, POS markdown broadcast feed, and AGEC-compliant charity donations and write-offs."
+
+paths:
+  /v1/markdown/evaluate:
+    post:
+      operationId: "evaluateMarkdown"
+      summary: "Evaluate markdown eligibility and calculate dynamic discount"
+      description: "Evaluates perishable lot expiry rules (T-1 30%, T-0 50%, expired donation gating), determines dynamic markdown eligibility, and returns calculated discount price."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkdownEvaluationRequest"
+      responses:
+        "200":
+          description: "Evaluation completed successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkdownEvaluationResponse"
+        "400":
+          description: "Invalid request payload or validation failure"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Domain rule violation (e.g. lot already expired or not eligible for markdown)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/markdown/print-label:
+    post:
+      operationId: "printMarkdownLabel"
+      summary: "Generate ESC/POS promotional markdown barcode label payload"
+      description: "Generates ESC/POS thermal printer byte stream and label payload for mobile Bluetooth printers to print promotional GS1 Databar / EAN-13 stickers."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintLabelRequest"
+      responses:
+        "200":
+          description: "Print label commands generated successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrintLabelResponse"
+        "400":
+          description: "Invalid request payload"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Business rule violation"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/markdown/pos-feed:
+    post:
+      operationId: "publishPosMarkdownEvent"
+      summary: "Broadcast markdown event to POS feed via Pub/Sub"
+      description: "Publishes markdown pricing event to Cloud Pub/Sub topic pos-markdown-updates for real-time checkout till synchronization."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosFeedPublishRequest"
+      responses:
+        "201":
+          description: "POS markdown event broadcasted successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosFeedPublishResponse"
+        "400":
+          description: "Invalid request payload"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Business rule violation"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/markdown/donations:
+    post:
+      operationId: "recordDonationOrSpoilage"
+      summary: "Record AGEC charity donation or bio-waste spoilage write-off"
+      description: "Logs unsold expired items (T+0 at closing) for charity donation (Banques Alimentaires) or bio-waste removal with French AGEC law compliance and tax reporting slips."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DonationSpoilageRequest"
+      responses:
+        "201":
+          description: "Donation or write-off recorded successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DonationSpoilageResponse"
+        "400":
+          description: "Invalid request payload"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Business rule violation"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    MarkdownEvaluationRequest:
+      type: object
+      required:
+        - request_id
+        - store_id
+        - sku_id
+        - ean_barcode
+        - lot_number
+        - expiry_date
+        - original_price_cents
+        - quantity
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: "Unique request identifier"
+        store_id:
+          type: string
+          description: "Carrefour store identifier"
+        sku_id:
+          type: string
+          description: "Product SKU identifier"
+        ean_barcode:
+          type: string
+          description: "Standard EAN-13 barcode"
+        lot_number:
+          type: string
+          description: "Perishable lot number"
+        expiry_date:
+          type: string
+          format: date
+          description: "DLC or DLUO expiry date (YYYY-MM-DD)"
+        original_price_cents:
+          type: integer
+          minimum: 1
+          description: "Original unit price in cents"
+        quantity:
+          type: integer
+          minimum: 1
+          description: "Number of units evaluated"
+
+    MarkdownEvaluationResponse:
+      type: object
+      required:
+        - evaluation_id
+        - eligible
+        - discount_percentage
+        - discounted_price_cents
+        - status
+        - rule_applied
+      properties:
+        evaluation_id:
+          type: string
+          description: "Identifier for this evaluation record"
+        eligible:
+          type: boolean
+          description: "Whether the product is eligible for markdown"
+        discount_percentage:
+          type: integer
+          description: "Calculated discount percentage (e.g. 30 for T-1, 50 for T-0)"
+        discounted_price_cents:
+          type: integer
+          description: "Final discounted unit price in cents"
+        status:
+          type: string
+          enum: ["DISCOUNT_30", "DISCOUNT_50", "STANDARD_PRICE", "DONATION_CANDIDATE", "SPOILAGE_CANDIDATE"]
+          description: "Categorical evaluation status"
+        rule_applied:
+          type: string
+          description: "Rule identifier that produced the decision"
+
+    PrintLabelRequest:
+      type: object
+      required:
+        - request_id
+        - evaluation_id
+        - ean_barcode
+        - discounted_price_cents
+        - quantity
+        - printer_id
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        evaluation_id:
+          type: string
+        ean_barcode:
+          type: string
+        discounted_price_cents:
+          type: integer
+          minimum: 1
+        quantity:
+          type: integer
+          minimum: 1
+        printer_id:
+          type: string
+          description: "Bluetooth or network printer identifier"
+
+    PrintLabelResponse:
+      type: object
+      required:
+        - job_id
+        - promotional_barcode
+        - escpos_payload_base64
+        - labels_printed
+      properties:
+        job_id:
+          type: string
+        promotional_barcode:
+          type: string
+          description: "Generated promotional EAN-13 / GS1 Databar payload"
+        escpos_payload_base64:
+          type: string
+          description: "Base64-encoded ESC/POS thermal command stream"
+        labels_printed:
+          type: integer
+
+    PosFeedPublishRequest:
+      type: object
+      required:
+        - request_id
+        - store_id
+        - ean_barcode
+        - promotional_barcode
+        - discounted_price_cents
+        - valid_until
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        store_id:
+          type: string
+        ean_barcode:
+          type: string
+        promotional_barcode:
+          type: string
+        discounted_price_cents:
+          type: integer
+          minimum: 1
+        valid_until:
+          type: string
+          format: date-time
+
+    PosFeedPublishResponse:
+      type: object
+      required:
+        - message_id
+        - topic
+        - published_at
+      properties:
+        message_id:
+          type: string
+        topic:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+
+    DonationSpoilageRequest:
+      type: object
+      required:
+        - request_id
+        - store_id
+        - sku_id
+        - lot_number
+        - action_type
+        - quantity
+        - original_value_cents
+        - reason_code
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        store_id:
+          type: string
+        sku_id:
+          type: string
+        lot_number:
+          type: string
+        action_type:
+          type: string
+          enum: ["CHARITY_DONATION", "BIO_WASTE_REMOVAL"]
+        quantity:
+          type: integer
+          minimum: 1
+        original_value_cents:
+          type: integer
+          minimum: 0
+        reason_code:
+          type: string
+          description: "AGEC-compliant disposal or donation reason code"
+        beneficiary_name:
+          type: string
+          description: "Charity beneficiary (e.g. Banques Alimentaires)"
+
+    DonationSpoilageResponse:
+      type: object
+      required:
+        - record_id
+        - fiscal_slip_id
+        - action_type
+        - stock_decremented
+        - timestamp
+      properties:
+        record_id:
+          type: string
+        fiscal_slip_id:
+          type: string
+          description: "Fiscal donation slip or waste destruction certificate ID"
+        action_type:
+          type: string
+        stock_decremented:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: "Standardized error code string"
+        message:
+          type: string
+          description: "Human-readable error explanation"
+        details:
+          type: object
+          description: "Optional diagnostic error attributes"
+          additionalProperties: true

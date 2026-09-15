@@ -1,0 +1,53 @@
+{
+  "critic_lens": "resilience",
+  "objections": [
+    {
+      "id": "RES-001",
+      "challenged_adr": "0002",
+      "severity": "critical",
+      "claim": "Single central Cloud SQL instance across 1,200 stores creates a massive single point of failure (SPOF) and unmanageable connection starvation under Cloud Run autoscale spikes.",
+      "failure_scenario": "During Saturday peak rush across 1,200 stores (15,000 events/sec at POS, thousands of mobile clerks restocking and dock workers scanning), Cloud Run autoscales to hundreds or thousands of container instances across the 3 microservices. Despite client-side connection pooling, each Cloud Run container maintains minimum connections through Cloud SQL Auth Proxy, easily surpassing PostgreSQL max_connections limit (typically 500-2000). New instances fail to obtain database connections, causing cascading HTTP 500 errors, connection timeouts, and regional API paralysis. Even with regional HA, failover takes 30-60 seconds during which thousands of active transactional locks drop simultaneously, inducing connection retry storms that crash the newly promoted primary instance immediately.",
+      "recommended_mitigation": "Deploy a dedicated serverless-friendly connection pooler like PgBouncer or Supavisor in HA mode, or adopt horizontal database partitioning / sharding by store/region (e.g., Cloud SQL instances sharded by geographic cluster, or evaluating Cloud Spanner with fine-grained sizing) to isolate blast radius so one store or region cannot paralyze all 1,200 stores."
+    },
+    {
+      "id": "RES-002",
+      "challenged_adr": "0005",
+      "severity": "high",
+      "claim": "Offline-first mobile synchronization relying on client-generated UUID idempotency keys fails to prevent business-level race conditions and concurrent double-depletion across disconnected mobile clerks.",
+      "failure_scenario": "Clerk A and Clerk B both work in an RF-shielded basement cold room (or experience Wi-Fi dead zones). Bin R-04-B-02 contains 20 units of milk. Clerk A scans 15 units for Aisle 1 replenishment; Clerk B simultaneously scans 10 units for Aisle 2. Both mobile apps record the actions locally into Room SQLite since neither can communicate with the server. When both clerks walk back into Wi-Fi range, Jetpack WorkManager fires concurrent background sync requests. Both requests carry unique Idempotency-Keys, so both bypass deduplication and execute against the stock ledger. The bin balance decrements to -5 units (negative inventory anomaly) or one clerk receives a late rejection after already physically stocking and displaying items on the sales floor, creating phantom inventory and physical-to-digital discrepancies.",
+      "recommended_mitigation": "Implement optimistic concurrency control with document/row version tokens (`expected_version` / CAS) in transfer intents, accompanied by a reservation leasing mechanism or offline reservation quotas partitioned per device. Define a deterministic server-side conflict resolution policy and reconciliation workflow for over-depletion rather than relying solely on HTTP idempotency keys."
+    },
+    {
+      "id": "RES-003",
+      "challenged_adr": "0002",
+      "severity": "high",
+      "claim": "Dual-store dependency on Memorystore Redis for both sub-10ms query caching and mutative idempotency validation creates cascading failure and data inconsistency if Redis experiences downtime, eviction, or network partition.",
+      "failure_scenario": "Memorystore Redis instance suffers memory exhaustion under Saturday peak traffic (caching millions of barcode lookups and thousands of idempotency keys/responses) or undergoes maintenance/restart. Under high memory pressure, Redis default volatile/allkeys-lru eviction drops active idempotency keys before their 24-hour TTL expires. A mobile terminal experiencing transient network timeout retries a `POST /v1/stock/commit-transfer`. Because the idempotency key was evicted or Redis is temporarily unreachable, the request falls back to the database or fails the deduplication check, executing the transfer twice or causing Cloud Run instances to hammer Cloud SQL directly with uncached queries. Cloud SQL is immediately overwhelmed by a 10x read spike that was previously absorbed by Redis, driving CPU to 100% and stalling all POS and scanning services.",
+      "recommended_mitigation": "Decouple the operational cache from the idempotency/deduplication store. Enforce database-level unique constraints and transactional idempotency records within PostgreSQL itself (e.g. `processed_requests` table checked within the stock adjustment transaction), and configure Redis strictly as a non-authoritative read-through cache with a robust circuit breaker (e.g., rate-limited database fallback) to prevent stampedes upon cache degradation."
+    },
+    {
+      "id": "RES-004",
+      "challenged_adr": "0003",
+      "severity": "high",
+      "claim": "Cloud Pub/Sub push subscriptions to Cloud Run microservices risk cascading auto-scaling storms and thundering herds during upstream recovery or backlog replays.",
+      "failure_scenario": "If Cloud SQL or the Stock Ledger service experiences transient degradation or an outage, Pub/Sub push deliveries fail with 5xx or deadlines exceed 60 seconds. Pub/Sub begins retrying unacknowledged messages with exponential backoff across 15,000 events/second. Once the database recovers, Pub/Sub unleashes the entire accumulated backlog across push endpoints simultaneously. Cloud Run detects massive ingress HTTP traffic and autoscales rapidly to its maximum instance quota, creating an instantaneous thundering herd against Cloud SQL and Redis. The newly recovered database is immediately crushed by connection and lock contention, re-triggering failures, resetting retry timers, and trapping the entire system in a self-perpetuating positive feedback loop of cascading failure.",
+      "recommended_mitigation": "Switch from push subscriptions to pull subscriptions or Cloud Run background worker instances governed by controlled concurrency, or enforce stringent Pub/Sub flow control (max outstanding messages and max push rate limits) combined with exponential backoff and circuit breakers to smooth traffic re-entry after downstream recovery."
+    },
+    {
+      "id": "RES-005",
+      "challenged_adr": "0004",
+      "severity": "medium",
+      "claim": "Hard 60-minute JWT token expiry combined with remote OIDC Identity Provider dependency causes store floor lockouts and data loss during external IdP outages or offline shifts.",
+      "failure_scenario": "An enterprise IdP outage (Google Workspace or Okta) occurs on Saturday morning, or a stock clerk remains in a basement cold-storage reserve or loading dock past the 60-minute token expiration mark. The clerk attempts to finalize an inbound dock pallet receipt or shelf transfer. The mobile app attempts to refresh the JWT token via Okta/Google Workspace OIDC, but requests fail. The mobile client either blocks the clerk from completing scans or queues requests with an expired JWT. When the client reconnects to the network, Cloud Run rejects the queued requests with HTTP 401 Unauthorized. Because the shift associate cannot re-authenticate, queued offline transactions cannot be dispatched without manual intervention, risking lost inventory records, delayed truck turnaround, or abandoned put-away routes.",
+      "recommended_mitigation": "Design an offline session grace period and cryptographic device-bound refresh token mechanism for store mobile clients, allowing validated handhelds to queue signed offline operations that can be verified and renewed via store-level fallback authentication or localized caching even during transient corporate IdP outages."
+    },
+    {
+      "id": "RES-006",
+      "challenged_adr": "0001",
+      "severity": "medium",
+      "claim": "Aggressive scale-to-zero compute policy induces severe cold start latency storms during sudden morning store opening bursts.",
+      "failure_scenario": "Between 00:00 and 05:00, all Cloud Run microservices scale down to zero instances. At 05:00 CET, morning receiving dock shifts begin across 1,200 stores simultaneously as delivery trucks arrive. Thousands of Zebra mobile scanners and dock terminals issue concurrent requests (`GET /inbound-shipments`, `POST /receive-pallet`, Redis cache warm-ups, Cloud SQL proxy handshakes). Cold container spin-ups require container initialization, VPC connector setup, and database pool establishment (exceeding 800ms-2s). Because containers start cold concurrently, ingress requests queue at the Cloud Load Balancer, triggering timeout errors on mobile scanners, leading workers to repeatedly re-tap and rescan, generating an artificial retry storm before the first batch of instances stabilizes.",
+      "recommended_mitigation": "Implement scheduled scaling policies (e.g. Cloud Scheduler triggering min-instances warm-up starting at 04:30 CET prior to shift start), automated pre-warming endpoints, and configure aggressive client-side request debouncing with jittered exponential backoff on Zebra handheld applications."
+    }
+  ]
+}

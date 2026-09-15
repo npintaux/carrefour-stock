@@ -1,0 +1,9 @@
+{
+  "subsystem": "inbound_dock",
+  "locked_at": "2026-09-15T12:01:27.983310+00:00",
+  "pytest_exit_code": 1,
+  "files": {
+    "tests/contract/inbound_dock/test_contract_inbound_dock.py": "3755ba1d91d09b414ee5f0ee68e8199d708462bf4032c2b36403945de362f541",
+    "tests/behavioral/inbound_dock/test_behavioral_inbound_dock.py": "6cef253b1d97e5085dca9fc81852e5182af0d8ed7a975701520f053dafe59794"
+  }
+}

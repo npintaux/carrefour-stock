@@ -1,0 +1,621 @@
+openapi: 3.0.3
+info:
+  title: "Stock Ledger Service API"
+  version: "1.0.0"
+  description: "Machine-readable OpenAPI contract for Carrefour Stock Flow - Stock Ledger Subsystem (Multi-zone store stock partitioning, departmental scoping, dual-key high-value write-off authorization, and internal transfers/depletions)."
+
+paths:
+  /v1/stores/{store_id}/stock:
+    get:
+      operationId: "listDepartmentStock"
+      summary: "Query department-scoped store stock"
+      description: "Retrieves real-time stock balances partitioned across store zones for a specific department. Enforces role-based department scoping (FR-3.1, US-1) and store tenant isolation (FR-3.3)."
+      parameters:
+        - name: store_id
+          in: path
+          required: true
+          description: "Unique tenant store identifier (e.g. STORE_FR_75015)"
+          schema:
+            type: string
+        - name: department_id
+          in: query
+          required: true
+          description: "Store department category code (e.g. RAYON_FRAIS, RAYON_EPICERIE)"
+          schema:
+            type: string
+        - name: zone
+          in: query
+          required: false
+          description: "Optional store sub-zone filter"
+          schema:
+            $ref: "#/components/schemas/StockZone"
+      responses:
+        "200":
+          description: "List of stock balance records matching department and store scope"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockListResponse"
+        "400":
+          description: "Invalid query parameters"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "Department or store scope authorization violation (ERR_OUT_OF_SCOPE_DEPARTMENT)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/stores/{store_id}/adjustments:
+    post:
+      operationId: "submitStockAdjustment"
+      summary: "Submit manual inventory adjustment or shrinkage write-off"
+      description: "Submits a stock adjustment. Evaluates departmental scope (FR-3.1) and dual-key sign-off threshold (>= €500, FR-3.2, US-2). Adjustments >= €500 or out-of-scope trigger PENDING_DIRECTOR_APPROVAL or 403."
+      parameters:
+        - name: store_id
+          in: path
+          required: true
+          description: "Unique tenant store identifier"
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: "UUID idempotency token to prevent duplicate adjustments"
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustmentRequest"
+      responses:
+        "200":
+          description: "Adjustment successfully processed (auto-approved < €500 or committed)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+        "202":
+          description: "Adjustment exceeds approval threshold (>= €500); queued for dual-key director sign-off"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+        "400":
+          description: "Invalid request payload or malformed fields"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "Forbidden - user department out of scope (ERR_OUT_OF_SCOPE_DEPARTMENT)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Unprocessable entity - invalid zone or insufficient stock balance"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/stores/{store_id}/adjustments/{adjustment_id}/sign-off:
+    post:
+      operationId: "signOffStockAdjustment"
+      summary: "Store Director dual-key approval or rejection for high-value write-off"
+      description: "Approve or reject a pending high-value stock adjustment (>= €500). Requires DIRECTEUR_MAGASIN role claim (US-2, AC-2.2, AC-2.3)."
+      parameters:
+        - name: store_id
+          in: path
+          required: true
+          description: "Unique tenant store identifier"
+          schema:
+            type: string
+        - name: adjustment_id
+          in: path
+          required: true
+          description: "Unique identifier of the pending adjustment"
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignOffRequest"
+      responses:
+        "200":
+          description: "Sign-off decision committed successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustmentResponse"
+        "400":
+          description: "Invalid sign-off action or missing required justification"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "Forbidden - user lacks DIRECTEUR_MAGASIN authorization"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "Adjustment record not found"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "Conflict - adjustment is not in PENDING_DIRECTOR_APPROVAL state"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/stores/{store_id}/transfers:
+    post:
+      operationId: "executeInternalTransfer"
+      summary: "Execute two-step internal multi-zone stock movement"
+      description: "Moves inventory between sub-locations (e.g. DRY_RESERVE -> IN_TRANSIT_FLOOR -> SALES_FLOOR_FACING) to prevent phantom stock during replenishment (FR-2.1, FR-2.2)."
+      parameters:
+        - name: store_id
+          in: path
+          required: true
+          description: "Unique tenant store identifier"
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: "UUID idempotency token to prevent duplicate movements"
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "200":
+          description: "Internal transfer executed and stock balances updated"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferResponse"
+        "400":
+          description: "Invalid transfer payload"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "Forbidden - department scope mismatch"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Unprocessable transfer - source zone has insufficient stock"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/stores/{store_id}/pos-depletions:
+    post:
+      operationId: "ingestPosDepletion"
+      summary: "Ingest Point of Sale (POS) sales transaction depletion"
+      description: "Deducts sales floor inventory within <= 5s of POS till completion (FR-2.3). Handles basket item depletions with idempotency."
+      parameters:
+        - name: store_id
+          in: path
+          required: true
+          description: "Unique tenant store identifier"
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: "UUID transaction idempotency key (till receipt id)"
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosDepletionRequest"
+      responses:
+        "200":
+          description: "POS depletion deducted from sales floor stock successfully"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosDepletionResponse"
+        "400":
+          description: "Malformed POS receipt payload"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: "Unprocessable item - SKU unknown or store mismatch"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: "Internal server error"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    StockZone:
+      type: string
+      enum:
+        - RECEIVING_DOCK
+        - COLD_STORAGE_RESERVE
+        - DRY_RESERVE
+        - IN_TRANSIT_FLOOR
+        - SALES_FLOOR_FACING
+        - QUARANTINE_DAMAGED
+        - CUSTOMER_CLICK_COLLECT_STAGED
+      description: "Granular multi-zone store sub-location topology (FR-2.1)"
+
+    AdjustmentStatus:
+      type: string
+      enum:
+        - AUTO_APPROVED
+        - PENDING_DIRECTOR_APPROVAL
+        - APPROVED
+        - REJECTED
+      description: "Lifecycle status of inventory adjustment or shrinkage write-off"
+
+    ReasonCode:
+      type: string
+      enum:
+        - THEFT
+        - BREAKAGE
+        - INTERNAL_CONSUMPTION
+        - MISCOUNT
+        - EXPIRY_SPOILAGE
+        - OTHER
+      description: "Categorized reason for shrinkage or variance write-off"
+
+    StockItem:
+      type: object
+      required:
+        - sku_id
+        - ean13
+        - product_name
+        - department_id
+        - zone
+        - quantity
+        - unit_price_cents
+      properties:
+        sku_id:
+          type: string
+          example: "SKU-FRAIS-101"
+        ean13:
+          type: string
+          example: "3560070123456"
+        product_name:
+          type: string
+          example: "Carrefour Lait Demi-Écrémé 1L"
+        department_id:
+          type: string
+          example: "RAYON_FRAIS"
+        zone:
+          $ref: "#/components/schemas/StockZone"
+        quantity:
+          type: integer
+          minimum: 0
+          example: 48
+        unit_price_cents:
+          type: integer
+          minimum: 0
+          description: "Unit price in Euro cents"
+          example: 115
+
+    StockListResponse:
+      type: object
+      required:
+        - store_id
+        - department_id
+        - total_items
+        - items
+      properties:
+        store_id:
+          type: string
+          example: "STORE_FR_75015"
+        department_id:
+          type: string
+          example: "RAYON_FRAIS"
+        total_items:
+          type: integer
+          example: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockItem"
+
+    AdjustmentRequest:
+      type: object
+      required:
+        - sku_id
+        - department_id
+        - zone
+        - quantity_delta
+        - unit_price_cents
+        - reason_code
+        - initiator_id
+        - initiator_role
+        - user_departments
+      properties:
+        sku_id:
+          type: string
+          example: "SKU-FRAIS-101"
+        department_id:
+          type: string
+          description: "Department target for the SKU being adjusted"
+          example: "RAYON_FRAIS"
+        zone:
+          $ref: "#/components/schemas/StockZone"
+        quantity_delta:
+          type: integer
+          description: "Quantity change (negative for shrinkage/write-off, positive for count adjustment)"
+          example: -10
+        unit_price_cents:
+          type: integer
+          minimum: 0
+          description: "Unit cost in Euro cents"
+          example: 5500
+        reason_code:
+          $ref: "#/components/schemas/ReasonCode"
+        initiator_id:
+          type: string
+          example: "chef_frais_01@carrefour.com"
+        initiator_role:
+          type: string
+          example: "CHEF_DE_RAYON"
+        user_departments:
+          type: array
+          description: "List of department IDs authorized on initiator JWT"
+          items:
+            type: string
+          example: ["RAYON_FRAIS"]
+
+    AdjustmentResponse:
+      type: object
+      required:
+        - adjustment_id
+        - store_id
+        - sku_id
+        - department_id
+        - zone
+        - quantity_delta
+        - total_value_cents
+        - status
+        - message
+      properties:
+        adjustment_id:
+          type: string
+          example: "adj-89102-uuid"
+        store_id:
+          type: string
+          example: "STORE_FR_75015"
+        sku_id:
+          type: string
+          example: "SKU-FRAIS-101"
+        department_id:
+          type: string
+          example: "RAYON_FRAIS"
+        zone:
+          $ref: "#/components/schemas/StockZone"
+        quantity_delta:
+          type: integer
+          example: -10
+        total_value_cents:
+          type: integer
+          description: "Total financial impact (absolute value) in Euro cents"
+          example: 55000
+        status:
+          $ref: "#/components/schemas/AdjustmentStatus"
+        message:
+          type: string
+          example: "Adjustment exceeds €500 threshold; routed to Store Director for approval."
+        director_note:
+          type: string
+          nullable: true
+          example: null
+
+    SignOffRequest:
+      type: object
+      required:
+        - director_id
+        - action
+      properties:
+        director_id:
+          type: string
+          example: "directeur_75015@carrefour.com"
+        action:
+          type: string
+          enum:
+            - APPROVE
+            - REJECT
+        note:
+          type: string
+          description: "Mandatory justification note if rejected, optional if approved"
+          example: "Approved after physical bin inspection."
+
+    TransferRequest:
+      type: object
+      required:
+        - sku_id
+        - department_id
+        - source_zone
+        - target_zone
+        - quantity
+        - operator_id
+      properties:
+        sku_id:
+          type: string
+          example: "SKU-EPICERIE-404"
+        department_id:
+          type: string
+          example: "RAYON_EPICERIE"
+        source_zone:
+          $ref: "#/components/schemas/StockZone"
+        target_zone:
+          $ref: "#/components/schemas/StockZone"
+        quantity:
+          type: integer
+          minimum: 1
+          example: 24
+        operator_id:
+          type: string
+          example: "els_jean@carrefour.com"
+
+    TransferResponse:
+      type: object
+      required:
+        - transfer_id
+        - store_id
+        - sku_id
+        - source_zone
+        - target_zone
+        - quantity
+        - status
+      properties:
+        transfer_id:
+          type: string
+          example: "trf-1234-uuid"
+        store_id:
+          type: string
+          example: "STORE_FR_75015"
+        sku_id:
+          type: string
+          example: "SKU-EPICERIE-404"
+        source_zone:
+          $ref: "#/components/schemas/StockZone"
+        target_zone:
+          $ref: "#/components/schemas/StockZone"
+        quantity:
+          type: integer
+          example: 24
+        status:
+          type: string
+          example: "COMMITTED"
+
+    PosDepletionItem:
+      type: object
+      required:
+        - ean13
+        - quantity
+      properties:
+        ean13:
+          type: string
+          example: "3560070123456"
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+
+    PosDepletionRequest:
+      type: object
+      required:
+        - receipt_id
+        - till_id
+        - timestamp
+        - items
+      properties:
+        receipt_id:
+          type: string
+          example: "REC-20260915-00129"
+        till_id:
+          type: string
+          example: "TILL-04"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-09-15T11:45:00Z"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PosDepletionItem"
+
+    PosDepletionResponse:
+      type: object
+      required:
+        - receipt_id
+        - store_id
+        - processed_items
+        - status
+      properties:
+        receipt_id:
+          type: string
+          example: "REC-20260915-00129"
+        store_id:
+          type: string
+          example: "STORE_FR_75015"
+        processed_items:
+          type: integer
+          example: 2
+        status:
+          type: string
+          example: "DEPLETED"
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: "ERR_OUT_OF_SCOPE_DEPARTMENT"
+        message:
+          type: string
+          example: "User is not authorized to access or modify stock in RAYON_EPICERIE."
+        details:
+          type: object
+          additionalProperties: true

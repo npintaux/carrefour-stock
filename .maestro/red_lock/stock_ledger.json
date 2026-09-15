@@ -1,0 +1,9 @@
+{
+  "subsystem": "stock_ledger",
+  "locked_at": "2026-09-15T12:01:38.816282+00:00",
+  "pytest_exit_code": 1,
+  "files": {
+    "tests/contract/stock_ledger/test_contract_stock_ledger.py": "75eb7fa6ce9634a3b7eecaf4f60a94012337fd2b1693de1c27a235e6ba2525dd",
+    "tests/behavioral/stock_ledger/test_behavioral_stock_ledger.py": "3d37454d1a1591138ad4df426954dcf268866d2bf9524cdacf34ee7f808d5a9d"
+  }
+}
